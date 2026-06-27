@@ -211,3 +211,62 @@ Gather the context from Notion as instructed, then output ONLY the finished brie
 no preface, acknowledgement, or explanation before the title, even when the input is
 ambiguous or cannot be resolved. Put any such note inside the brief itself (the
 metadata `Sources:` line and the Bottom line), never before the `# Meeting Brief` title."""
+
+
+# ---------------------------------------------------------------------------
+# Phase 4 — calendar-driven: brief a SPECIFIC person for a SPECIFIC meeting
+# ---------------------------------------------------------------------------
+# These build ON TOP of the Phase 2 contract. The OUTPUT format is identical — same
+# FORMAT_RULES, same sections, same gold example, same honesty rule. The only addition is
+# HOW to gather and WHO to center the (unchanged) sections on. There are NO new sections:
+# gathered history is background that sharpens the existing sections, never its own section.
+
+# Appended after NOTION_GATHER_CONTRACT to make the gather person-specific.
+_MEETING_GATHER_ADDENDUM = """\
+THIS IS A CALENDAR-DRIVEN BRIEF FOR ONE SPECIFIC MEETING WITH ONE SPECIFIC PERSON.
+You are given the attendee's name + email, the company, and the meeting time/title from the
+calendar. Use that to make the gather precise:
+
+- RESOLVE THE ACCOUNT by the company token (from the meeting title and the attendee's email
+  domain), exactly as in step 1 above.
+- IDENTIFY THE EXACT PERSON. An account usually has SEVERAL contacts; you must center the brief
+  on the ONE who is actually attending — match the attendee's DISPLAY NAME and the COMPANY ROOT,
+  NOT the literal email address. Calendar emails use a `…@company.example.com` form while the CRM
+  stores `…@company.com`, so the addresses will not be equal — match on the name + company, never
+  by requiring the emails to match. If two contacts could fit, prefer the exact name match.
+- Still fetch the OTHER contacts and the recent meetings — but as BACKGROUND to understand the
+  account and who else shapes the decision, not as the subject of the brief.
+
+USE this understanding inside the UNCHANGED sections (do NOT add any new section):
+- "Who you're meeting" centers on THIS attendee — their role, style, and their part in the
+  decision. Mention other CRM contacts only as brief background (e.g. "X, not in the room but
+  shaping the decision"), never as a generic roster, and never lead with the wrong person.
+- "What's changed", "Likely to come up", "Watch-outs", and the talking points must reflect THIS
+  person's relationship and THIS account's current situation.
+- Do NOT add a company-history or person-history section. History you gathered is background that
+  sharpens the existing sections; it is never printed as its own section.
+
+If you cannot resolve the account OR cannot identify the person, do NOT guess: produce the
+unresolved `Unknown` brief as instructed above (the caller will render a calendar-only stub)."""
+
+NOTION_MEETING_GATHER_CONTRACT = NOTION_GATHER_CONTRACT + "\n\n" + _MEETING_GATHER_ADDENDUM
+
+SYSTEM_PROMPT_NOTION_MEETING = _compose_system_prompt(
+    _ROLE_NOTION, gather=NOTION_MEETING_GATHER_CONTRACT
+)
+
+# The turn prompt for Phase 4 — the calendar meeting to brief on. All fields come from the
+# calendar event; the agent resolves the CRM account/person itself.
+NOTION_MEETING_TASK_TEMPLATE = """\
+Prepare the one-page meeting brief for this calendar meeting:
+
+- Meeting: {title}
+- When: {when}
+- Person you are meeting: {person} (calendar email: {email})
+- Company: {company}
+- Calendar description: {description}
+
+Resolve the account and identify {person} specifically in the Notion CRM, gather the context as
+instructed, then output ONLY the finished brief — no preface, acknowledgement, or explanation
+before the `# Meeting Brief` title, even if the account or person cannot be resolved. Put any
+such note inside the brief itself (the metadata `Sources:` line and the Bottom line)."""

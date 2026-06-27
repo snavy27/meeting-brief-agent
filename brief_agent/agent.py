@@ -46,7 +46,13 @@ from claude_agent_sdk import (
     query,
 )
 
-from .prompt import NOTION_TASK_TEMPLATE, OUTPUT_CONTRACT, SYSTEM_PROMPT_NOTION
+from .prompt import (
+    NOTION_MEETING_TASK_TEMPLATE,
+    NOTION_TASK_TEMPLATE,
+    OUTPUT_CONTRACT,
+    SYSTEM_PROMPT_NOTION,
+    SYSTEM_PROMPT_NOTION_MEETING,
+)
 
 DEFAULT_MODEL = "opus"
 
@@ -101,6 +107,49 @@ ALLOWED_TOOLS = NOTION_READ_TOOLS + ["ToolSearch"]
 # `Unknown` brief, never by trying to prompt the user.
 DISALLOWED_TOOLS = NOTION_WRITE_TOOLS + ["AskUserQuestion"]
 
+# The Google Calendar MCP connector ("claude.ai Google Calendar") and its tools. The
+# per-meeting brief engine itself never touches the calendar (only the Phase 4 calendar
+# adapter reads events), but these are defined here so every run can ASSERT zero calendar
+# writes alongside the zero Notion writes — the safety gate extends, it never weakens.
+_CALENDAR = "mcp__claude_ai_Google_Calendar__"
+
+# Read-only calendar tools — all the adapter ever needs.
+CALENDAR_READ_TOOLS = [
+    f"{_CALENDAR}list_events",
+    f"{_CALENDAR}get_event",
+    f"{_CALENDAR}list_calendars",
+]
+
+# Every calendar tool that mutates state — hard-denied everywhere, asserted never called.
+CALENDAR_WRITE_TOOLS = [
+    f"{_CALENDAR}create_event",
+    f"{_CALENDAR}update_event",
+    f"{_CALENDAR}delete_event",
+    f"{_CALENDAR}respond_to_event",
+]
+_CAL_WRITE_SET = set(CALENDAR_WRITE_TOOLS)
+
+# Every write tool, across both connectors — the full set the zero-writes assertion guards.
+ALL_WRITE_TOOLS = NOTION_WRITE_TOOLS + CALENDAR_WRITE_TOOLS
+_ALL_WRITE_SET = _WRITE_TOOL_SET | _CAL_WRITE_SET
+
+
+@dataclass
+class MeetingHint:
+    """A calendar meeting to brief on: who/when/what, resolved by the CRM at draft time.
+
+    Carries everything the meeting-aware gather needs. `event_id` ties the resulting brief
+    back to its calendar event in the provenance sidecar.
+    """
+
+    person: str          # attendee display name (the person being met)
+    company: str         # company token (from the event title / email domain)
+    when: str            # human-readable meeting time from the calendar
+    title: str           # calendar event title
+    email: str = ""      # attendee calendar email (domain differs from the CRM's)
+    description: str = ""
+    event_id: str | None = None
+
 
 @dataclass
 class BriefResult:
@@ -114,11 +163,24 @@ class BriefResult:
     # Provenance: the actual Notion pages fetched, categorised by source database.
     # {"account": {title,url}|None, "meetings": [{title,url}], "contacts": [{title,url}]}
     sources: dict = field(default_factory=dict)
+    # Phase 4: which calendar event this brief came from, and how it was rendered.
+    event_id: str | None = None
+    status: str = "briefed"  # "briefed" | "stub" (no CRM match) | "skipped" (internal)
 
     @property
     def wrote_to_notion(self) -> bool:
         """True if the agent ever called a Notion write tool (must be False)."""
         return any(name in _WRITE_TOOL_SET for name in self.tool_calls)
+
+    @property
+    def wrote_to_calendar(self) -> bool:
+        """True if a Calendar write tool was ever called (must be False)."""
+        return any(name in _CAL_WRITE_SET for name in self.tool_calls)
+
+    @property
+    def made_any_write(self) -> bool:
+        """True if ANY write tool (Notion or Calendar) was called (must be False)."""
+        return any(name in _ALL_WRITE_SET for name in self.tool_calls)
 
 
 def count_body_words(brief: str) -> int:
@@ -284,10 +346,17 @@ def _result_error(message: ResultMessage) -> str:
     return message.subtype
 
 
-async def _agentic_draft(target: str, model: str) -> tuple[str, list[str], dict]:
-    """Run the agentic gather + draft pass. Returns (brief, tool_calls, sources)."""
+async def _agentic_draft(
+    model: str, *, system_prompt: str, task_prompt: str
+) -> tuple[str, list[str], dict]:
+    """Run the agentic gather + draft pass. Returns (brief, tool_calls, sources).
+
+    `system_prompt` / `task_prompt` select the mode: the Phase 2 single-name pair by default,
+    or the Phase 4 meeting-aware pair. The tool/permission gates are identical either way —
+    read-only Notion, everything else denied — so the safety posture is mode-independent.
+    """
     options = ClaudeAgentOptions(
-        system_prompt=SYSTEM_PROMPT_NOTION,
+        system_prompt=system_prompt,
         model=model,
         allowed_tools=ALLOWED_TOOLS,
         disallowed_tools=DISALLOWED_TOOLS,
@@ -302,7 +371,7 @@ async def _agentic_draft(target: str, model: str) -> tuple[str, list[str], dict]
     pages: list[dict] = []               # fetched pages, in order, deduped by url
     seen_urls: set[str] = set()
     async for message in query(
-        prompt=NOTION_TASK_TEMPLATE.format(target=target),
+        prompt=task_prompt,
         options=options,
     ):
         if isinstance(message, AssistantMessage):
@@ -394,18 +463,40 @@ async def _tighten(brief: str, words: int, model: str, target: int = _RETRY_TARG
     return _extract_brief(result) or _strip_fences(result)
 
 
-async def draft_brief(target: str, model: str = DEFAULT_MODEL) -> BriefResult:
+async def draft_brief(
+    target: str, model: str = DEFAULT_MODEL, *, meeting: MeetingHint | None = None
+) -> BriefResult:
     """Gather context from Notion for `target` and draft a one-page brief.
 
     Args:
-        target: An account name or meeting subject (e.g. "Meridian").
+        target: An account name or meeting subject (e.g. "Meridian"). Ignored when `meeting`
+            is given (the meeting fields drive the gather instead).
         model: Model alias ("opus", "sonnet", "haiku") or a full model ID.
+        meeting: When provided, draft a Phase 4 calendar brief centered on the specific
+            attendee (meeting-aware system prompt + task template). When None, behaviour is
+            exactly the Phase 2 single-name brief.
 
     Returns:
         A BriefResult with the brief text and an audit trail (tool calls, retry,
-        unresolved flag, body word count).
+        unresolved flag, body word count, and — for meeting briefs — the calendar event id).
     """
-    brief, tool_calls, sources = await _agentic_draft(target, model)
+    if meeting is not None:
+        system_prompt = SYSTEM_PROMPT_NOTION_MEETING
+        task_prompt = NOTION_MEETING_TASK_TEMPLATE.format(
+            title=meeting.title,
+            when=meeting.when,
+            person=meeting.person,
+            email=meeting.email or "(not provided)",
+            company=meeting.company,
+            description=meeting.description or "(none)",
+        )
+    else:
+        system_prompt = SYSTEM_PROMPT_NOTION
+        task_prompt = NOTION_TASK_TEMPLATE.format(target=target)
+
+    brief, tool_calls, sources = await _agentic_draft(
+        model, system_prompt=system_prompt, task_prompt=task_prompt
+    )
     words = count_body_words(brief)
     unresolved = _is_unresolved(brief)
 
@@ -445,4 +536,6 @@ async def draft_brief(target: str, model: str = DEFAULT_MODEL) -> BriefResult:
         unresolved=unresolved,
         body_words=words,
         sources=sources,
+        event_id=meeting.event_id if meeting else None,
+        status="briefed",
     )

@@ -3,9 +3,14 @@
 A Python agent built on the [Claude Agent SDK](https://code.claude.com/docs/en/agent-sdk/python)
 that drafts one-page meeting briefs.
 
-**Phase 2 (current):** *agentic over the Notion CRM.* Give it just an account name or
-meeting subject and it searches Notion itself, follows the account's Contact and Meeting
-relations, and drafts the brief — read-only, never writing to Notion.
+**Phase 2:** *agentic over the Notion CRM.* Give it just an account name or meeting subject and
+it searches Notion itself, follows the account's Contact and Meeting relations, and drafts the
+brief — read-only, never writing to Notion.
+
+**Phase 4 (current):** *calendar-driven daily packet.* Point it at a day and it reads your
+calendar (read-only), skips internal-only meetings, and drafts one brief per external meeting —
+**centered on the specific person you're meeting**, not just their company. The one-page format is
+unchanged; the calendar context only sharpens the existing sections.
 
 ## Requirements
 
@@ -24,6 +29,8 @@ pip install -r requirements.txt
 
 ## Usage
 
+### Single brief (Phase 2)
+
 ```bash
 python main.py "Meridian" --out brief.md
 ```
@@ -33,17 +40,35 @@ python main.py "Meridian" --out brief.md
 - `--model`, `-m` — model alias (`opus`, `sonnet`, `haiku`) or full ID.
   Defaults to `opus`; can also be set with the `BRIEF_AGENT_MODEL` env var.
 
+### Daily packet (Phase 4)
+
+```bash
+python main.py --calendar --date 2026-06-29 --out day.md
+```
+
+- `--calendar` — read the calendar for a day and brief every external meeting.
+- `--date` — `today` | `tomorrow` (default) | `YYYY-MM-DD`.
+- `--out` — output path (defaults to `day.md` in calendar mode).
+
+The packet leads with a header (`N meetings · X briefed / Y unresolved / Z skipped`), lists the
+skipped internal meetings, then the briefs in start-time order. Internal-only meetings (no
+external attendee) are skipped; external meetings with no CRM match get a minimal calendar-only
+**stub** that invents nothing. Each brief is centered on the actual attendee — when a company has
+several CRM contacts, the brief leads with the one in the meeting and treats the others as
+background. Attendees are matched to CRM contacts by **name + company**, not by exact email.
+
 Examples:
 
 ```bash
-python main.py "Orbit Telecom"                 # default Opus -> brief.md
+python main.py "Orbit Telecom"                 # single brief, default Opus -> brief.md
 python main.py "Meridian" --model sonnet -o m.md
-BRIEF_AGENT_MODEL=sonnet python main.py "Meridian"
+python main.py --calendar                      # tomorrow's packet -> day.md
+python main.py --calendar --date today -m sonnet
 ```
 
-The brief is written to the `--out` file. An audit trail prints to stderr: body word
-count, the Notion tools called, whether a length retry ran, and a confirmation that
-**zero** write tools were used.
+The output is written to `--out` (plus a `*.sources.json` provenance sidecar). An audit trail
+prints to stderr, ending in a confirmation that **zero** write tools were used (Notion in single
+mode; Notion **and** Calendar in calendar mode).
 
 ## How it works
 
@@ -59,16 +84,23 @@ main.py → brief_agent/cli.py → brief_agent/agent.py (draft_brief)
                                       │       3. follow Contacts + Meetings relations
                                       │       4. draft the brief from only those pages
                                       │
-                                      └─ length validate-and-retry (≤1 rewrite to 250–350 words)
+                                      └─ length validate-and-retry (≤2 rewrites to 250–350 words)
 ```
+
+In calendar mode, `brief_agent/calendar.py` reads the day's events (read-only) and
+`brief_agent/daily.py` batches the engine above over each external meeting, ordering the results
+into one packet. A meeting-aware gather (`SYSTEM_PROMPT_NOTION_MEETING` in `prompt.py`) centers
+each brief on the specific attendee — the output format is identical to Phase 2.
 
 ### Read-only safety
 
-- `allowed_tools` is whitelisted to `notion-search` and `notion-fetch` only.
-- Every Notion write tool (`create_pages`, `update_page`, `move_pages`, `duplicate_page`,
-  `create_database`, `update_data_source`, `create_view`, `update_view`, `create_comment`)
-  is in `disallowed_tools` as well — defense in depth. The agent can never modify Notion.
-- `BriefResult.wrote_to_notion` is asserted `False`; the CLI errors out if a write is ever seen.
+- `allowed_tools` is whitelisted to `notion-search`/`notion-fetch` (and, for the calendar
+  adapter, the calendar list/get tools) only.
+- Every Notion **and** Calendar write tool is in `disallowed_tools` as well — defense in depth.
+  The agent can never modify Notion or the calendar.
+- `permission_mode="dontAsk"` denies anything not allow-listed without prompting (non-interactive).
+- `BriefResult.made_any_write` / `DayPacket.made_any_write` are asserted `False`; the CLI and both
+  eval suites error out if any write to either connector is ever seen.
 
 ### Notes on the CRM
 

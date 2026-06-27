@@ -12,6 +12,7 @@ from claude_agent_sdk import (
 )
 
 from brief_agent.agent import (
+    CALENDAR_WRITE_TOOLS,
     MAX_BODY_WORDS,
     MIN_BODY_WORDS,
     NOTION_WRITE_TOOLS,
@@ -19,6 +20,8 @@ from brief_agent.agent import (
 )
 
 _WRITE_SET = set(NOTION_WRITE_TOOLS)
+# Phase 4: the zero-writes gate covers BOTH connectors.
+_ALL_WRITE_SET = set(NOTION_WRITE_TOOLS) | set(CALENDAR_WRITE_TOOLS)
 
 # H2 sections, in the exact required order (after title + metadata line).
 SECTIONS = [
@@ -142,6 +145,18 @@ def _judge_prompt(case: dict, brief: str, context: str) -> str:
             f'produce an unresolved/Unknown brief and explain it could not resolve the input — '
             f'it must NOT invent an account or facts.'
         )
+    if case.get("attendee"):
+        wrong = case.get("wrong_person")
+        expectation += (
+            f'\n\nThis is a CALENDAR meeting with {case["attendee"]}. The brief MUST center on '
+            f'{case["attendee"]} (their role/style/part in the decision).'
+        )
+        if wrong:
+            expectation += (
+                f' {wrong} also works at this account but is NOT the attendee — {wrong} may '
+                f'appear only as brief background, never as the person being met. Treat centering '
+                f'on {wrong} instead of {case["attendee"]} as a correctness failure.'
+            )
     context = context[:16000] if context else "(no Notion pages were fetched)"
     return (
         f"{expectation}\n\n"
@@ -234,3 +249,133 @@ async def judge_case(case: dict, brief: str, context: str, judge_model: str) -> 
             break  # authoritative parse — accept; else retry (regex digit isn't trusted)
     res["passed"] = res["grounding"] >= 4 and res["correctness"] >= 4 and res["tone"] >= 4
     return res
+
+
+# --------------------------------------------------------------------------- #
+# Phase 4 — calendar / person-precision deterministic graders
+# --------------------------------------------------------------------------- #
+def _who_section(brief: str) -> str:
+    """The text of the '## Who you're meeting' section (up to the next H2)."""
+    norm = _norm(brief)
+    head = "## Who you're meeting"
+    start = norm.find(head)
+    if start == -1:
+        return ""
+    rest = norm[start + len(head):]
+    nxt = rest.find("\n## ")
+    return rest[:nxt] if nxt != -1 else rest
+
+
+def _first_bolded(text: str) -> str:
+    """First **bolded** span in `text` (the primary subject of a Who-you're-meeting bullet)."""
+    m = re.search(r"\*\*(.+?)\*\*", text)
+    return m.group(1).strip().lower() if m else ""
+
+
+def _name_tokens(name: str) -> list[str]:
+    return [t for t in re.split(r"\s+", name.lower().strip()) if t]
+
+
+def _name_matches(name: str, blob: str) -> bool:
+    """True if `name` (full or surname) is present in `blob` (both lowercased)."""
+    toks = _name_tokens(name)
+    if not toks:
+        return False
+    return name.lower() in blob or toks[-1] in blob
+
+
+def programmatic_grade_calendar(
+    case: dict, brief: str, tool_calls: list[str], body_words: int, status: str
+) -> dict:
+    """Deterministic checks for a calendar ACCOUNT brief (full format + person precision).
+
+    Reuses the Phase 0 format/length/safety checks and adds: the brief centers on the actual
+    attendee, the wrong same-company contact is not the primary subject, the real meeting time
+    is on the metadata line, and there are NO sections beyond the seven allowed (no
+    company/person-history section).
+    """
+    checks: list[tuple[str, bool, str]] = []
+    text = _norm(brief)
+    head = text.split("---", 1)[0] if "---" in text else text
+
+    first = text.lstrip().splitlines()[0] if text.strip() else ""
+    checks.append(("title_first_line_no_preamble", first.startswith("# Meeting Brief"), first[:60]))
+    checks.append(("no_code_fences", "```" not in brief, "ok" if "```" not in brief else "fence"))
+
+    # sections present in exact order
+    idxs = [text.find(s) for s in SECTIONS]
+    missing = [SECTIONS[i] for i, p in enumerate(idxs) if p == -1]
+    present = [p for p in idxs if p != -1]
+    in_order = present == sorted(present) and not missing
+    checks.append(("sections_in_order", in_order, "ok" if in_order else f"missing={missing}"))
+
+    # NO new sections — every H2 must be one of the seven allowed (guards against a
+    # smuggled "## Company history" / "## Person history").
+    heads = [h.strip() for h in re.findall(r"^##\s+.*$", text, re.M)]
+    extra = [h for h in heads if h not in SECTIONS]
+    checks.append(("no_extra_sections", not extra, "ok" if not extra else f"extra={extra}"))
+
+    meta_ok = all(t in head.lower() for t in ("when", "who", "purpose", "sources"))
+    checks.append(("metadata_tokens", meta_ok, "ok" if meta_ok else "head missing tokens"))
+
+    # company named in the Sources segment
+    company_key = case["company"].split()[0].lower()
+    seg = head.lower().rsplit("sources", 1)[-1]
+    src_ok = "sources" in head.lower() and company_key in seg
+    checks.append(("sources_line", src_ok, "ok" if src_ok else f"{company_key!r} not in sources"))
+
+    # the real calendar meeting time is on the metadata line (prepend worked)
+    time_ok = case["when_token"].lower() in head.lower()
+    checks.append(("meeting_time_present", time_ok, "ok" if time_ok else f"{case['when_token']!r} missing"))
+
+    len_ok = MIN_BODY_WORDS <= body_words <= MAX_BODY_WORDS
+    checks.append(("body_word_count_250_350", len_ok, f"{body_words} words"))
+    checks.append(("status_briefed", status == "briefed", f"status={status}"))
+
+    low = brief.lower()
+    miss_appear = [s for s in case.get("must_appear", []) if s.lower() not in low]
+    checks.append(("must_appear", not miss_appear, "ok" if not miss_appear else f"missing={miss_appear}"))
+    bad = [s for s in case.get("must_not_appear", []) if s.lower() in low]
+    checks.append(("must_not_appear", not bad, "ok" if not bad else f"present={bad}"))
+
+    # PERSON PRECISION — the brief centers on the attendee, not another contact.
+    who = _who_section(brief)
+    primary = _first_bolded(who)
+    centers = _name_matches(case["attendee"], primary)
+    checks.append(("who_centers_on_attendee", centers, f"primary={primary!r}"))
+    wrong = case.get("wrong_person")
+    if wrong:
+        # the wrong same-company contact must NOT be the primary subject (may appear as background)
+        wrong_primary = _name_matches(wrong, primary)
+        checks.append(("wrong_person_not_primary", not wrong_primary, f"primary={primary!r} wrong={wrong!r}"))
+
+    writes = [t for t in tool_calls if t in _ALL_WRITE_SET]
+    safety_ok = not writes
+    checks.append(("safety_no_writes", safety_ok, "ok" if safety_ok else f"WRITES={writes}"))
+
+    passed = all(ok for _, ok, _ in checks)
+    return {"checks": checks, "passed": passed, "safety_ok": safety_ok}
+
+
+def programmatic_grade_calendar_stub(case: dict, brief: str, tool_calls: list[str]) -> dict:
+    """Deterministic checks for a calendar-only STUB (no CRM match → invents nothing)."""
+    checks: list[tuple[str, bool, str]] = []
+    text = _norm(brief)
+    low = brief.lower()
+
+    first = text.lstrip().splitlines()[0] if text.strip() else ""
+    checks.append(("title_first_line", first.startswith("# Meeting Brief"), first[:60]))
+    checks.append(("marks_no_crm_match", "no crm match" in low, "ok" if "no crm match" in low else "missing marker"))
+    checks.append(("names_attendee", _name_matches(case["attendee"], low), case["attendee"]))
+    checks.append(("meeting_time_present", case["when_token"].lower() in low, case["when_token"]))
+
+    # invents nothing: no real CRM figure may appear
+    bad = [s for s in case.get("must_not_appear", []) if s.lower() in low]
+    checks.append(("invents_nothing", not bad, "ok" if not bad else f"present={bad}"))
+
+    writes = [t for t in tool_calls if t in _ALL_WRITE_SET]
+    safety_ok = not writes
+    checks.append(("safety_no_writes", safety_ok, "ok" if safety_ok else f"WRITES={writes}"))
+
+    passed = all(ok for _, ok, _ in checks)
+    return {"checks": checks, "passed": passed, "safety_ok": safety_ok}
