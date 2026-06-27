@@ -1,0 +1,83 @@
+{
+  "target": "Cobalt Software",
+  "model": "opus",
+  "tool_calls": [
+    "ToolSearch",
+    "ToolSearch",
+    "mcp__claude_ai_Notion__notion-search",
+    "mcp__claude_ai_Notion__notion-fetch",
+    "mcp__claude_ai_Notion__notion-fetch",
+    "mcp__claude_ai_Notion__notion-fetch",
+    "mcp__claude_ai_Notion__notion-fetch",
+    "mcp__claude_ai_Notion__notion-fetch",
+    "mcp__claude_ai_Notion__notion-fetch"
+  ],
+  "transcript": [
+    {
+      "tool": "ToolSearch",
+      "input": {
+        "query": "select:notion-search,notion-fetch",
+        "max_results": 5
+      }
+    },
+    {
+      "tool": "ToolSearch",
+      "input": {
+        "query": "notion search fetch",
+        "max_results": 10
+      }
+    },
+    {
+      "tool": "mcp__claude_ai_Notion__notion-search",
+      "input": {
+        "query": "Cobalt Software",
+        "data_source_url": "collection://9eef9efb-0005-4b25-a907-42cfd913b668",
+        "page_size": 5
+      }
+    },
+    {
+      "tool": "mcp__claude_ai_Notion__notion-fetch",
+      "input": {
+        "id": "38cbf93e-8ed8-81d8-b378-f265c7a21796"
+      }
+    },
+    {
+      "tool": "mcp__claude_ai_Notion__notion-fetch",
+      "input": {
+        "id": "38cbf93e8ed881dd8a28f3d8dbd9d2e0"
+      }
+    },
+    {
+      "tool": "mcp__claude_ai_Notion__notion-fetch",
+      "input": {
+        "id": "38cbf93e8ed8816198dae433868c264c"
+      }
+    },
+    {
+      "tool": "mcp__claude_ai_Notion__notion-fetch",
+      "input": {
+        "id": "38cbf93e8ed881acb8e7c268f75004c8"
+      }
+    },
+    {
+      "tool": "mcp__claude_ai_Notion__notion-fetch",
+      "input": {
+        "id": "38cbf93e8ed881e6bdc2cdb903f7256b"
+      }
+    },
+    {
+      "tool": "mcp__claude_ai_Notion__notion-fetch",
+      "input": {
+        "id": "38cbf93e8ed8812eb806dd6431a43352"
+      }
+    }
+  ],
+  "brief": "# Meeting Brief — Cobalt Software (Priya Nair, VP Engineering)\n\n**When:** Wed 8 Jul 2026 · **Who:** Priya Nair, VP Engineering & champion · **Purpose:** Advance the ~40-seat expansion · **Sources:** Cobalt Software (account), Roadmap review + QBR + Onboarding check-in (meetings), Priya Nair + Mark Lin (contacts)\n\n---\n\n## Bottom line\nCobalt is a healthy $850K reference account up for renewal Jan 2027, and an expansion is live: Priya wants to add ~40 seats across two sister teams. Your job in this meeting is to hand her a concrete expansion proposal she can take to the CFO — keep the momentum she values, and get clarity on the CFO's approval timeline.\n\n## Who you're meeting\n- **Priya Nair — VP Engineering, champion.** Fast-moving, detail-oriented, strong internal advocate. Responds to concrete next steps, not open-ended discussion. Not the budget holder.\n- **Mark Lin — CFO, economic buyer** (likely not in the room). Holds the expansion budget; influenced by Priya. Reach him through her, never around her.\n\n## What's changed since you last spoke\n- Cobalt raised a growth round in Q1 and is hiring aggressively.\n- Two adjacent teams have started asking Priya about access — a natural expansion path (~40 seats).\n- At the 20 Jun roadmap review she was excited about the API tier and floated the expansion herself.\n\n## Likely to come up\n- The API tier — capabilities and fit for the new teams.\n- Mechanics of adding ~40 seats across two sister teams.\n- What pricing/terms she'd need to make the CFO case.\n\n## Your goals & talking points\n- **Deliver the expansion proposal:** bring a draft Priya can forward to Mark Lin, framed for a CFO audience.\n- **Pin down the approval path:** ask what triggers and what timeline the CFO needs to greenlight expansion.\n- **Reinforce the API tier:** tie it concretely to the two teams' needs to keep her enthusiasm anchored.\n\n## Watch-outs\n- Don't go around Priya to the CFO — route everything through her.\n- Avoid open-ended discussion; come with concrete next steps.\n\n## Desired outcome\nPriya leaves with a CFO-ready expansion proposal and a clear date for the budget decision.",
+  "body_words": 312,
+  "wrote_to_notion": false,
+  "result": {
+    "is_error": false,
+    "subtype": "success",
+    "num_turns": 10
+  }
+}

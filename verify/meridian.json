@@ -1,0 +1,90 @@
+{
+  "target": "Meridian",
+  "model": "opus",
+  "tool_calls": [
+    "ToolSearch",
+    "ToolSearch",
+    "mcp__claude_ai_Notion__notion-search",
+    "mcp__claude_ai_Notion__notion-fetch",
+    "mcp__claude_ai_Notion__notion-fetch",
+    "mcp__claude_ai_Notion__notion-fetch",
+    "mcp__claude_ai_Notion__notion-fetch",
+    "mcp__claude_ai_Notion__notion-fetch",
+    "mcp__claude_ai_Notion__notion-fetch",
+    "mcp__claude_ai_Notion__notion-fetch"
+  ],
+  "transcript": [
+    {
+      "tool": "ToolSearch",
+      "input": {
+        "query": "select:notion-search,notion-fetch",
+        "max_results": 5
+      }
+    },
+    {
+      "tool": "ToolSearch",
+      "input": {
+        "query": "notion search fetch",
+        "max_results": 10
+      }
+    },
+    {
+      "tool": "mcp__claude_ai_Notion__notion-search",
+      "input": {
+        "query": "Meridian",
+        "data_source_url": "collection://9eef9efb-0005-4b25-a907-42cfd913b668",
+        "page_size": 5
+      }
+    },
+    {
+      "tool": "mcp__claude_ai_Notion__notion-fetch",
+      "input": {
+        "id": "38cbf93e-8ed8-8175-b8ad-f8db0620efa5"
+      }
+    },
+    {
+      "tool": "mcp__claude_ai_Notion__notion-fetch",
+      "input": {
+        "id": "38cbf93e-8ed8-81bb-85fe-e80cad74ef18"
+      }
+    },
+    {
+      "tool": "mcp__claude_ai_Notion__notion-fetch",
+      "input": {
+        "id": "38cbf93e-8ed8-81f4-97b7-fdac997ecb0f"
+      }
+    },
+    {
+      "tool": "mcp__claude_ai_Notion__notion-fetch",
+      "input": {
+        "id": "38cbf93e-8ed8-81a4-97ca-c9541effac0a"
+      }
+    },
+    {
+      "tool": "mcp__claude_ai_Notion__notion-fetch",
+      "input": {
+        "id": "38cbf93e-8ed8-8179-88e6-f7cb9c849267"
+      }
+    },
+    {
+      "tool": "mcp__claude_ai_Notion__notion-fetch",
+      "input": {
+        "id": "38cbf93e-8ed8-8129-b660-eb3ae90d0785"
+      }
+    },
+    {
+      "tool": "mcp__claude_ai_Notion__notion-fetch",
+      "input": {
+        "id": "38cbf93e-8ed8-8159-8281-c9178c2ec959"
+      }
+    }
+  ],
+  "brief": "# Meeting Brief — Meridian Retail (Sarah Chen, CEO)\n\n**When:** Tue 30 Jun 2026 · **Who:** Sarah Chen, CEO of Meridian Retail (our largest account, $3.2M ARR) · **Purpose:** Relationship/renewal touchpoint ahead of the 30 Sep renewal · **Sources:** Meridian Retail (account), Q1 QBR + Exec sync + Renewal value workshop (meetings), Sarah Chen + Dev Patel + Robert Hale (contacts)\n\n---\n\n## Bottom line\nMeridian is our biggest customer ($3.2M ARR), up for renewal 30 September, with competitor threat rated High. The relationship is healthy but turning transactional under cost pressure, and pricing is the unresolved sticking point. Your job is to reinforce the partnership and keep the renewal on track — not to negotiate price.\n\n## Who you're meeting\n- **Sarah Chen — CEO, economic buyer.** Decisive, from a brand/marketing background; prefers big-picture partnership talk over product detail and values partners who clearly understand retail.\n\n## What's changed since you last spoke\n- Meridian reported a soft Q1 (sales down 4% YoY) and launched a company-wide cost-review program in May.\n- Competitor **Vantage** pitched Meridian's CFO, Robert Hale, in April (per champion Dev Patel).\n- Our platform usage keeps climbing — up 18% across stores; adoption is strong.\n- 15 Jun renewal value workshop built the ROI case, but pricing remains the sticking point.\n\n## Likely to come up\n- Pricing and value for money heading into the September renewal.\n- Whether our roadmap supports her 2027 international/multi-region expansion.\n- Reassurance following the March outage.\n\n## Your goals & talking points\n- **Reaffirm the partnership:** lead with 18% usage growth and strong adoption.\n- **Address pricing pre-emptively:** acknowledge the cost environment; signal flexibility on structure without discounting on the spot.\n- **Plant the roadmap:** connect our multi-region capabilities to her 2027 expansion.\n- **Clarify the decision path:** probe whether Sarah or CFO Robert Hale owns the renewal.\n\n## Watch-outs\n- Don't commit to specific pricing or discounts outside the formal renewal.\n- The March outage is sensitive — acknowledge briefly, don't over-explain.\n\n## Desired outcome\nLeave with the partnership reaffirmed and a scheduled working session to finalize renewal terms.",
+  "body_words": 289,
+  "wrote_to_notion": false,
+  "result": {
+    "is_error": false,
+    "subtype": "success",
+    "num_turns": 11
+  }
+}

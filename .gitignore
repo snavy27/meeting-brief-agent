@@ -1,0 +1,20 @@
+# Python
+__pycache__/
+*.pyc
+.venv/
+venv/
+
+# Secrets / local env
+.env
+
+# Claude Code (local, non-shared)
+CLAUDE.md
+.claude/settings.local.json
+
+# Generated brief output + provenance sidecar
+brief.md
+*.sources.json
+
+# Local verification scratch (keep verify/capture.py; ignore its generated output)
+verify/briefs/
+verify/*.json

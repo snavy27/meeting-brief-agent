@@ -1,0 +1,76 @@
+{
+  "target": "Orbit Telecom",
+  "model": "opus",
+  "tool_calls": [
+    "ToolSearch",
+    "ToolSearch",
+    "mcp__claude_ai_Notion__notion-search",
+    "mcp__claude_ai_Notion__notion-fetch",
+    "mcp__claude_ai_Notion__notion-fetch",
+    "mcp__claude_ai_Notion__notion-fetch",
+    "mcp__claude_ai_Notion__notion-fetch",
+    "mcp__claude_ai_Notion__notion-fetch"
+  ],
+  "transcript": [
+    {
+      "tool": "ToolSearch",
+      "input": {
+        "query": "select:notion-search,notion-fetch",
+        "max_results": 5
+      }
+    },
+    {
+      "tool": "ToolSearch",
+      "input": {
+        "query": "notion search fetch",
+        "max_results": 10
+      }
+    },
+    {
+      "tool": "mcp__claude_ai_Notion__notion-search",
+      "input": {
+        "query": "Orbit Telecom",
+        "data_source_url": "collection://9eef9efb-0005-4b25-a907-42cfd913b668",
+        "page_size": 5
+      }
+    },
+    {
+      "tool": "mcp__claude_ai_Notion__notion-fetch",
+      "input": {
+        "id": "38cbf93e-8ed8-813a-b2b9-ec8ba5788e7e"
+      }
+    },
+    {
+      "tool": "mcp__claude_ai_Notion__notion-fetch",
+      "input": {
+        "id": "38cbf93e-8ed8-819b-8f80-de38150e398f"
+      }
+    },
+    {
+      "tool": "mcp__claude_ai_Notion__notion-fetch",
+      "input": {
+        "id": "38cbf93e-8ed8-8124-87c0-d77b697c74d8"
+      }
+    },
+    {
+      "tool": "mcp__claude_ai_Notion__notion-fetch",
+      "input": {
+        "id": "38cbf93e-8ed8-81bf-a8e0-f1e06a9ef93d"
+      }
+    },
+    {
+      "tool": "mcp__claude_ai_Notion__notion-fetch",
+      "input": {
+        "id": "38cbf93e-8ed8-817c-9dc6-cead484d1ead"
+      }
+    }
+  ],
+  "brief": "# Meeting Brief — Greg Sullivan (VP Operations, Orbit Telecom)\n\n**When:** Wed 1 Jul 2026 · **Who:** Greg Sullivan, VP Operations and economic buyer · **Purpose:** Reliability plan review ahead of 31 Aug renewal · **Sources:** Orbit Telecom (account), QBR + Outage post-mortem + Reliability plan review (meetings), Greg Sullivan (contact)\n\n---\n\n## Bottom line\nOrbit ($980K ARR) is At Risk and up for renewal 31 August. Two Q2 outages badly damaged trust, and Greg is openly evaluating alternatives — competitor threat is High. This meeting is about proving reliability has measurably improved. Bring uptime data and a concrete plan, not excuses.\n\n## Who you're meeting\n- **Greg Sullivan** — VP Operations, economic buyer. Blunt, ops-focused, impatient. Measures everything in uptime and tickets; low tolerance for excuses.\n\n## What's changed since you last spoke\n- Two outages in Q2 severely hurt trust (second outage drove a 8 May post-mortem).\n- Greg formally requested a reliability improvement plan.\n- At the 8 Jun check-in he was openly evaluating alternatives and demanded measurable uptime gains.\n- Sentiment has slid from Neutral (Mar QBR) to Negative across the last two meetings.\n\n## Likely to come up\n- Hard uptime numbers since the Q2 outages — has reliability actually improved?\n- The specifics and timeline of the reliability improvement plan.\n- Whether to renew, and on what terms, given the competitor in play.\n\n## Your goals & talking points\n- **Lead with data:** open with concrete uptime/ticket metrics showing improvement — no preamble, no excuses.\n- **Own the plan:** walk through the reliability improvement plan with owners and dates; show tighter monitoring is already in place.\n- **Protect the renewal:** reconnect improved reliability to the 31 Aug decision and signal continued investment.\n\n## Watch-outs\n- No excuses or over-explaining the outages — data and plan only.\n- Don't over-promise uptime targets you can't evidence; he'll measure you against them.\n- Treat the competitor threat as real; don't assume the renewal is safe.\n\n## Desired outcome\nGreg accepts that reliability is measurably improving and agrees to move toward renewal on the strength of the plan.",
+  "body_words": 298,
+  "wrote_to_notion": false,
+  "result": {
+    "is_error": false,
+    "subtype": "success",
+    "num_turns": 9
+  }
+}

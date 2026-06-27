@@ -1,0 +1,83 @@
+{
+  "target": "Brightline Health",
+  "model": "opus",
+  "tool_calls": [
+    "ToolSearch",
+    "ToolSearch",
+    "mcp__claude_ai_Notion__notion-search",
+    "mcp__claude_ai_Notion__notion-fetch",
+    "mcp__claude_ai_Notion__notion-fetch",
+    "mcp__claude_ai_Notion__notion-fetch",
+    "mcp__claude_ai_Notion__notion-fetch",
+    "mcp__claude_ai_Notion__notion-fetch",
+    "mcp__claude_ai_Notion__notion-fetch"
+  ],
+  "transcript": [
+    {
+      "tool": "ToolSearch",
+      "input": {
+        "query": "select:notion-search,notion-fetch",
+        "max_results": 5
+      }
+    },
+    {
+      "tool": "ToolSearch",
+      "input": {
+        "query": "notion search fetch CRM",
+        "max_results": 10
+      }
+    },
+    {
+      "tool": "mcp__claude_ai_Notion__notion-search",
+      "input": {
+        "query": "Brightline Health",
+        "data_source_url": "collection://9eef9efb-0005-4b25-a907-42cfd913b668",
+        "page_size": 5
+      }
+    },
+    {
+      "tool": "mcp__claude_ai_Notion__notion-fetch",
+      "input": {
+        "id": "38cbf93e-8ed8-8185-a79d-d43c11de035a"
+      }
+    },
+    {
+      "tool": "mcp__claude_ai_Notion__notion-fetch",
+      "input": {
+        "id": "38cbf93e-8ed8-8109-9c75-fc98aeac8f50"
+      }
+    },
+    {
+      "tool": "mcp__claude_ai_Notion__notion-fetch",
+      "input": {
+        "id": "38cbf93e-8ed8-8147-b203-c70d212658c9"
+      }
+    },
+    {
+      "tool": "mcp__claude_ai_Notion__notion-fetch",
+      "input": {
+        "id": "38cbf93e-8ed8-8184-803c-ff1a5d2466cc"
+      }
+    },
+    {
+      "tool": "mcp__claude_ai_Notion__notion-fetch",
+      "input": {
+        "id": "38cbf93e-8ed8-811b-a543-c820fa2b93ef"
+      }
+    },
+    {
+      "tool": "mcp__claude_ai_Notion__notion-fetch",
+      "input": {
+        "id": "38cbf93e-8ed8-8194-a487-e012906fa74d"
+      }
+    }
+  ],
+  "brief": "# Meeting Brief — Brightline Health (Marcus Reed, COO)\n\n**When:** Thu 2 Jul 2026 · **Who:** Marcus Reed, COO & economic buyer; likely Aisha Bello, new CISO · **Purpose:** Advance an early-stage healthcare deal past security review · **Sources:** Brightline Health (account), Security deep-dive + Intro call + Product demo (meetings), Marcus Reed + Aisha Bello (contacts)\n\n---\n\n## Bottom line\nBrightline is a Series B–funded healthcare prospect (no ARR yet) that likes the product but won't move until compliance is satisfied. Marcus is the economic buyer; their new CISO is the gating factor. This meeting is about clearing the security/HIPAA hurdle with proof — not pitching. Win the CISO's confidence and you unlock budget.\n\n## Who you're meeting\n- **Marcus Reed — COO, economic buyer.** Analytical and skeptical; wants proof and references, dislikes hype, asks hard ROI questions.\n- **Aisha Bello — CISO (new hire), deal blocker.** Rigorous on HIPAA and data residency. Her sign-off gates the deal.\n\n## What's changed since you last spoke\n- Closed a Series B (announced June) — budget is likely available.\n- New CISO hired in May means a rigorous security review.\n- Three touches so far (May demo → June intro → 20 Jun security deep-dive); CISO pressed hard on data residency with multiple follow-ups still open.\n\n## Likely to come up\n- HIPAA and data-residency specifics — the recurring blocker.\n- The two healthcare references requested at the intro call.\n- Whether this is a buying conversation or still evaluation.\n\n## Your goals & talking points\n- **Clear compliance:** bring concrete HIPAA and data-residency answers, framed as evidence, not assurance.\n- **Deliver references:** hand over the two healthcare references already promised.\n- **Test authority:** probe whether budget and decision power sit in the room post–Series B.\n\n## Watch-outs\n- Don't oversell — Marcus reacts badly to hype. Lead with proof.\n- Don't hand-wave compliance; the CISO will catch it and it stalls the deal.\n\n## Desired outcome\nLeave with the CISO's compliance concerns satisfied and a clear, dated path to a commercial decision.",
+  "body_words": 284,
+  "wrote_to_notion": false,
+  "result": {
+    "is_error": false,
+    "subtype": "success",
+    "num_turns": 10
+  }
+}
