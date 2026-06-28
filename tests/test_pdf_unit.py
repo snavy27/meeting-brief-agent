@@ -9,7 +9,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
-from brief_agent.pdf import _to_latin1, render_packet_pdf  # noqa: E402
+from brief_agent.pdf import _to_cp1252, render_packet_pdf  # noqa: E402
 
 # A packet-shaped sample with every shape the real renderer must handle, plus tricky characters.
 _SAMPLE = """# Daily briefing — Monday 29 June 2026
@@ -42,13 +42,18 @@ _No CRM match — calendar details only. Confirm the record in Notion before the
 """
 
 
-def test_to_latin1_maps_smart_punctuation_and_never_raises():
-    out = _to_latin1("em—dash en–dash “curly” ‘quotes’ ellipsis… arrow→")
-    assert "—" not in out and "–" not in out and "…" not in out
-    assert "-" in out and '"curly"' in out and "..." in out
-    # An accented latin-1 char survives; a non-latin-1 char is replaced, not raised.
-    assert _to_latin1("Estée") == "Estée"
-    assert isinstance(_to_latin1("emoji 🚀 here"), str)
+def test_to_cp1252_normalises_dashes_and_keeps_typography():
+    out = _to_cp1252("em—dash en–dash “curly” ‘quotes’ ellipsis… arrow→")
+    # Em dash collapses to ONE consistent en dash; en dash, curly quotes and ellipsis survive
+    # as real glyphs (cp1252 / WinAnsi); the arrow has no cp1252 glyph so it degrades to "->".
+    assert "—" not in out and "–" in out
+    assert "“curly”" in out and "‘quotes’" in out and "…" in out
+    assert "->" in out
+    # The whole result must be cp1252-encodable (so fpdf2 core fonts never raise on it).
+    out.encode("cp1252")
+    # An accented char survives; a non-cp1252 char is replaced, not raised.
+    assert _to_cp1252("Estée") == "Estée"
+    assert isinstance(_to_cp1252("emoji 🚀 here"), str)
 
 
 def test_render_returns_valid_pdf_bytes():
@@ -75,7 +80,7 @@ def test_render_real_packet_if_present():
 
 
 if __name__ == "__main__":
-    test_to_latin1_maps_smart_punctuation_and_never_raises()
+    test_to_cp1252_normalises_dashes_and_keeps_typography()
     test_render_returns_valid_pdf_bytes()
     test_render_handles_unicode_without_exception()
     test_render_real_packet_if_present()
