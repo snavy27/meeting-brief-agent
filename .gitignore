@@ -19,6 +19,11 @@ CLAUDE.md
 brief.md
 *.sources.json
 
+# Generated daily packets / PDFs (scheduled_run.py --out-dir)
+out/
+day-*.md
+day-*.pdf
+
 # Local verification scratch (keep verify/capture.py; ignore its generated output)
 verify/briefs/
 verify/*.json

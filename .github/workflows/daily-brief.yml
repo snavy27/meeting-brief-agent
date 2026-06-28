@@ -1,0 +1,55 @@
+name: Daily meeting brief
+
+# Scheduled + manual. The scheduled run and the manual run invoke the SAME command
+# (`python scheduled_run.py`), so "run it now" is exactly what cron does.
+on:
+  schedule:
+    # GitHub cron is UTC. 04:30 UTC ≈ 06:30 Europe/Paris in summer (CEST, UTC+2);
+    # in winter (CET, UTC+1) the same line fires at 05:30 local. The job itself always
+    # computes "today" in Europe/Paris, so the date is correct either way — only the
+    # send time shifts by an hour across DST. Adjust this line if you need an exact local time.
+    - cron: "30 4 * * *"
+  workflow_dispatch: {}  # manual trigger = the --once test
+
+concurrency:
+  group: daily-brief
+  cancel-in-progress: false
+
+jobs:
+  brief:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+          cache: pip
+
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+
+      - name: Materialize Google service-account key
+        env:
+          GOOGLE_SERVICE_ACCOUNT_JSON: ${{ secrets.GOOGLE_SERVICE_ACCOUNT_JSON }}
+        run: printf '%s' "$GOOGLE_SERVICE_ACCOUNT_JSON" > service-account.json
+
+      - name: Build packet and email the PDF
+        env:
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          NOTION_TOKEN: ${{ secrets.NOTION_TOKEN }}
+          GOOGLE_SERVICE_ACCOUNT_FILE: service-account.json
+          GOOGLE_CALENDAR_ID: ${{ secrets.GOOGLE_CALENDAR_ID }}
+          SMTP_HOST: smtp.gmail.com
+          SMTP_PORT: "587"
+          SMTP_USER: ${{ secrets.SMTP_USER }}
+          SMTP_PASS: ${{ secrets.SMTP_PASS }}
+          BRIEF_FROM: ${{ secrets.SMTP_USER }}
+          BRIEF_RECIPIENT: ${{ secrets.BRIEF_RECIPIENT }}
+        # Non-zero exit fails the workflow (the failure email has already been sent by the job).
+        run: python scheduled_run.py
+
+      - name: Always remove the service-account key
+        if: always()
+        run: rm -f service-account.json

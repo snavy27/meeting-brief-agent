@@ -1,200 +1,231 @@
-# Meeting Brief Agent
+# Meeting-Brief Agent
 
-A Python agent built on the [Claude Agent SDK](https://code.claude.com/docs/en/agent-sdk/python)
-that drafts one-page meeting briefs. Give it an account name (or point it at a day's calendar) and
-it gathers its own context from a Notion CRM — and recent company news from the web — then writes a
-tight, CEO-ready brief. It is **read-only everywhere** and runs **fully headless** (API-key auth, no
-interactive login). Its first rule is honesty: if a fact isn't in the sources, it says `Unknown`
-rather than inventing one.
+Auto-drafts one-page meeting-prep briefs for a CEO. Each morning it reads the day's
+calendar, pulls the right person and company from a Notion CRM, enriches with recent
+public web news, drafts a one-page brief per external meeting, renders the day's
+packet to PDF, and emails it. Runs on a schedule and on demand. Headless (Claude API).
 
-## Project phases
+Built on the Claude Agent SDK. Honesty-first: read-only access to your data, every
+claim traceable to a source, missing facts marked Unknown, never fabricated.
 
-The agent was built in seven phases. Each adds a capability without disturbing the brief **format**
-(the section list, gold example, honesty rule, and ~250–350-word one-page limit have been fixed
-since Phase 1) or the **read-only / zero-writes** guarantee.
+---
 
-| Phase | Theme | What it added |
-|-------|-------|---------------|
-| **1** | Draft from pasted text | The core writer: raw source material in → a one-page brief out, following the format spec and honesty rule (`SYSTEM_PROMPT` + `PROMPT_TEMPLATE` in `prompt.py`). |
-| **2** | Agentic over the Notion CRM | Give it just an account name/subject; it searches Notion itself, fetches the account page, follows the **Contacts** and **Meetings** relations, and drafts from only those pages. Read-only, never writing to Notion. |
-| **3** | Eval harness + hardening | An LLM-as-judge + programmatic eval suite (`eval/`). Two post-baseline fixes: a **length validate-and-retry** loop (≤2 rewrites toward an internal ~320-word target; acceptance stays exactly 250–350) and a **provenance sidecar** (`*.sources.json`) recording the real Notion page URLs used, while the CEO-facing Sources line keeps readable page names. |
-| **4** | Calendar-driven daily packet | `--calendar` reads a day's events, **skips internal-only meetings**, and drafts one brief per external meeting — **centered on the specific person** you're meeting (matched to a CRM contact by name + company, not exact email). No CRM match → a calendar-only **stub** that invents nothing. No new sections — gathered history sharpens the existing ones. |
-| **5** | Web enrichment for "What's changed" | A read-only web sub-agent gathers recent **company-level** news (funding, launches, earnings, M&A, leadership moves, major incidents; ~last 6 months) and folds only relevant, **source-cited** items into the existing "What's changed" section. Never used to identify or correct the person (the CRM is the sole source of truth for contacts); a web fact appears only if a fetched source URL supports it, else it's omitted — the brief never pads. |
-| **6** | API-key-only authentication | Cut model auth over to `ANTHROPIC_API_KEY` only — no Claude Code session auth, no fallback, fully headless, fail-fast on a missing key. |
-| **7** | Connector decoupling (current) | Replaced the `claude.ai` MCP connectors (which the API key disables) with credentials we own: the CRM is served by an **in-process, read-only Notion MCP server** (`notion_mcp.py`, `NOTION_TOKEN` auth) and the calendar by a direct **service-account** read (`gcal.py`, `calendar.readonly`). The whole pipeline now runs headless with no `claude.ai` login anywhere. |
+## What it does
 
-## Requirements
+Given a day, for each meeting on the calendar it:
 
-- **Python 3.10+**
-- **Node.js** (the SDK runs the Claude Code CLI under the hood)
-- **`ANTHROPIC_API_KEY` (required).** Authenticates the model. The agent runs fully headless —
-  no session login, no fallback. If it's missing, every entry point fails fast.
-- **`NOTION_TOKEN` (required).** A Notion **internal integration** token
-  (https://www.notion.so/my-integrations). The CRM is read through our **own** read-only Notion
-  MCP server (`brief_agent/notion_mcp.py`), authenticated by this token — **not** the claude.ai
-  connector. Setting `ANTHROPIC_API_KEY` disables the claude.ai connectors, so a standalone token
-  is what keeps the CRM reachable headless. Share the integration with the **Accounts**,
-  **Meetings**, and **Contacts** databases (each: ••• → *Connections*), or it sees nothing.
-- **Google Calendar (only for the live `--calendar` CLI).** A Google **service account** with the
-  Calendar API enabled, whose email you've shared your calendar with (read-only). The evals mock
-  the calendar, so this is not needed to run the eval suite.
+1. Resolves the external attendee to one CRM account **and the exact person** (not just
+   the company — companies have several contacts).
+2. Gathers context: that person's role/style and prior interactions, the account's
+   situation, recent web news about the company.
+3. Drafts a fixed-format one-page brief (the format lives in `prompt.py` — the source
+   of truth; do not edit casually).
+4. Skips internal-only meetings; for meetings with no CRM match, emits a clearly
+   labelled calendar-only stub (never an invented brief).
 
-Model auth (API key) and the CRM/calendar (their own tokens) are fully decoupled from any
-`claude.ai` login — the whole pipeline runs headless. Missing credentials fail fast with a clear,
-secret-free message.
+Output: one combined daily packet (PDF), plus a `.sources.json` sidecar tying each
+brief to its calendar event and the exact Notion pages + web URLs used.
 
-## Setup
+---
 
-```bash
+## Setup (one time)
+
+### 1. Python
+```
 pip install -r requirements.txt
-cp .env.example .env        # then fill in your secrets (see below)
 ```
 
-Set the secrets in `.env` (or export them in your shell):
-
-```bash
-ANTHROPIC_API_KEY=sk-ant-...          # model auth (required)
-NOTION_TOKEN=ntn_...                  # CRM auth (required); share the 3 DBs with the integration
-GOOGLE_SERVICE_ACCOUNT_FILE=service-account.json   # live --calendar only
-GOOGLE_CALENDAR_ID=you@example.com                 # live --calendar only
+### 2. Claude API key
+The agent authenticates via the Claude API (headless — no Claude Code login).
+```
+ANTHROPIC_API_KEY=sk-ant-...
 ```
 
-Secrets are never printed, committed, or written to any output; `.env`, `*.key`, and
-`service-account.json` are gitignored. A missing **required** credential fails fast with a clear,
-secret-free message before any model call.
-
-## Usage
-
-### Single brief (Phase 2)
-
-```bash
-python main.py "Meridian" --out brief.md
+### 3. Notion CRM (read-only)
+- Create an internal integration at notion.so/my-integrations → **Access token** auth.
+  Read-content capability is enough (leave insert/update/delete off).
+- Share all three databases with the integration (open each → ••• → Connections):
+  **Accounts**, **Meetings**, **Contacts**.
+```
+NOTION_TOKEN=ntn_...
 ```
 
-- `target` (positional) — account name or meeting subject to brief on.
-- `--out`, `-o` — where to write the brief. Defaults to `brief.md`.
-- `--model`, `-m` — model alias (`opus`, `sonnet`, `haiku`) or full ID.
-  Defaults to `opus`; can also be set with the `BRIEF_AGENT_MODEL` env var.
+### 4. Google Calendar (read-only, headless)
+- Google Cloud Console → enable **Google Calendar API**.
+- Create a **service account**, add a **JSON key**, save it as `service-account.json`
+  in the project root (gitignored).
+- Share your calendar (Calendar → ••• → Settings and sharing → Share with specific
+  people) with the service account's email, permission **"See all event details"**.
+```
+GOOGLE_SERVICE_ACCOUNT_FILE=service-account.json
+GOOGLE_CALENDAR_ID=you@example.com
+```
 
-### Daily packet (Phase 4)
+### 5. Email delivery (the only outbound action)
+SMTP (e.g. a Gmail App Password) or an email API. Credentials in `.env`, never logged.
+```
+SMTP_HOST=...
+SMTP_PORT=587
+SMTP_USER=...
+SMTP_PASS=...
+BRIEF_RECIPIENT=you@example.com
+```
 
-```bash
+> All secrets live in `.env` (gitignored). `service-account.json` and `*.key` are
+> gitignored too. Never commit credentials.
+
+---
+
+## Run it now
+
+The scheduled job and the manual run are the **same command** — the scheduler just
+runs `python scheduled_run.py` on a timer. To test without waiting, run it yourself:
+
+```
+# Today's packet (Europe/Paris), emailed as a PDF — exactly what cron runs
+python scheduled_run.py
+
+# Any specific day, on demand
+python scheduled_run.py --date 2026-06-29
+
+# Build + save the PDF under out/, do NOT send (errors print to the console)
+python scheduled_run.py --no-email
+
+# One-off: send to a different recipient
+python scheduled_run.py --to someone@example.com
+```
+
+The PDF (plus the packet `.md` and a `.sources.json` provenance sidecar) is written to
+`out/day-<date>.*` on every run, then emailed unless `--no-email` is given. Re-running a
+day overwrites those files, so the job is safe to re-run.
+
+Make targets wrap the same command:
+```
+make brief                       # today, email the PDF
+make brief-local                 # save locally, skip send
+make brief-date DATE=2026-06-29  # a specific day, email it
+```
+
+Single-meeting / single-day generation (no email) still works via the core CLI:
+```
+python main.py "Target Corporation" --out brief.md
 python main.py --calendar --date 2026-06-29 --out day.md
 ```
 
-- `--calendar` — read the calendar for a day and brief every external meeting.
-- `--date` — `today` | `tomorrow` (default) | `YYYY-MM-DD`.
-- `--out` — output path (defaults to `day.md` in calendar mode).
-- `--no-web` — disable web enrichment (web is **on by default** in both modes). The Sources line
-  keeps CRM page names and a separate `Web:` segment for any cited article URLs.
+Model is configurable; default **Opus** (production bar). `--model sonnet` is cheaper
+for iteration but runs near the length limit — keep Opus for real briefs.
 
-The packet leads with a header (`N meetings · X briefed / Y unresolved / Z skipped`), lists the
-skipped internal meetings, then the briefs in start-time order. Internal-only meetings (no
-external attendee) are skipped; external meetings with no CRM match get a minimal calendar-only
-**stub** that invents nothing. Each brief is centered on the actual attendee — when a company has
-several CRM contacts, the brief leads with the one in the meeting and treats the others as
-background. Attendees are matched to CRM contacts by **name + company**, not by exact email.
+---
 
-Examples:
+## Schedule it
 
-```bash
-python main.py "Orbit Telecom"                 # single brief, default Opus -> brief.md
-python main.py "Meridian" --model sonnet -o m.md
-python main.py --calendar                      # tomorrow's packet -> day.md
-python main.py --calendar --date today -m sonnet
+The job is a plain CLI command; point any scheduler at it.
+
+**Recommended — GitHub Actions** (no always-on machine needed). The committed workflow
+`.github/workflows/daily-brief.yml` runs daily and can be triggered manually
+(`workflow_dispatch`). Add these repo **Secrets**: `ANTHROPIC_API_KEY`, `NOTION_TOKEN`,
+`GOOGLE_CALENDAR_ID`, `GOOGLE_SERVICE_ACCOUNT_JSON` (the whole key file's contents),
+`SMTP_USER`, `SMTP_PASS`, `BRIEF_RECIPIENT`. The workflow writes the service-account JSON
+from its secret, runs the job, and deletes it afterwards.
+
+GitHub cron is **UTC**: the workflow uses `30 4 * * *` ≈ **06:30 Europe/Paris** in summer
+(CEST); in winter (CET) the same line fires at 05:30 local. The job always computes
+"today" in Europe/Paris, so the *date* is correct year-round — only the send time shifts
+by an hour across DST. Edit the cron line for an exact local time.
+
+**Equivalents:**
+- **cron** (always-on host): `30 4 * * * cd /path/to/repo && /usr/bin/python scheduled_run.py`
+- **Windows Task Scheduler**: a Daily trigger running
+  `python C:\path\to\scheduled_run.py` with "Start in" set to the repo folder.
+
+> A self-hosted scheduler needs an always-on host — a laptop asleep at 6:30am silently
+> misses the run. GitHub Actions avoids that.
+
+---
+
+## Failure handling
+
+Every run is wrapped so it **never fails silently**. On any error — API/network, a
+429 after retries, render or send failure, empty day — you get a **failure email**
+with the error summary, and the process exits non-zero. If you get a failure email:
+
+| Symptom | Likely cause | Fix |
+|---|---|---|
+| "auth"/401 | API key missing/expired | check `ANTHROPIC_API_KEY` in `.env` |
+| Notion empty / "not found" | DB not shared with integration | re-share Accounts/Meetings/Contacts |
+| Calendar empty | wrong calendar ID, or share not propagated | verify `GOOGLE_CALENDAR_ID`; wait 5–10 min after sharing |
+| 429 / rate limit | transient | usually self-resolves on the built-in retry; re-run if needed |
+| No email arrived | SMTP creds or spam | check SMTP_* vars; check spam folder |
+
+---
+
+## Guarantees (don't weaken these)
+
+- **Read-only.** The agent never writes to Notion or the calendar. Email is the only
+  outbound action. The test suite asserts 0 writes on every run.
+- **Honesty.** A fact ships only if a source supports it (CRM page or web URL); else
+  it's omitted or marked Unknown. CRM is the sole source of truth for *who* you're
+  meeting — web is never used to verify or "correct" contacts.
+- **Format is fixed.** `prompt.py` holds the brief spec and section order. Changing it
+  invalidates the eval baselines — re-run evals if you touch it.
+
+---
+
+## Tests / evals
+
+```
+# Offline unit tests (no network, no creds) — includes the delivery layer
+python -m pytest -q tests/
+
+# Model-backed eval suites (require ANTHROPIC_API_KEY + NOTION_TOKEN)
+python -m eval.run_eval            # account resolution (7/7)
+python -m eval.run_eval_calendar   # daily packet
+python -m eval.run_eval_web        # web enrichment (4/4)
+
+# Live smoke tests (real network, non-gating)
+RUN_LIVE_NOTION=1 python tests/test_notion_injection_live.py
 ```
 
-The output is written to `--out` (plus a `*.sources.json` provenance sidecar). An audit trail
-prints to stderr, ending in a confirmation that **zero** write tools were used (Notion in single
-mode; Notion **and** Calendar in calendar mode).
+The delivery layer has its own offline tests: `tests/test_pdf_unit.py` (renders the
+packet to a valid PDF, Unicode-safe) and `tests/test_mailer_unit.py` (asserts one
+recipient, the PDF attachment, and that the password never appears in output).
 
-## How it works
+Baselines live in `eval/results/`. Opus is the regression bar (7/7). Web and live
+calendar are mocked in the gate so it stays deterministic; live paths are separate,
+non-gating checks.
+
+---
+
+## Project layout
 
 ```
-main.py → brief_agent/cli.py → brief_agent/agent.py (draft_brief)
-                                      │
-                                      ├─ claude_agent_sdk.query() — AGENTIC loop
-                                      │     system prompt: gather-from-Notion contract
-                                      │                    + format spec  (brief_agent/prompt.py)
-                                      │     tools (read-only): notion-search, notion-fetch
-                                      │       served by our OWN in-process Notion MCP server
-                                      │       (brief_agent/notion_mcp.py, NOTION_TOKEN auth)
-                                      │       1. search Accounts DS → resolve to one account
-                                      │       2. fetch the account page (properties + body)
-                                      │       3. follow Contacts + Meetings relations
-                                      │       4. draft the brief from only those pages
-                                      │
-                                      └─ length validate-and-retry (≤2 rewrites to 250–350 words)
+brief_agent/
+  prompt.py         the brief format/spec (source of truth — don't edit casually)
+  agent.py          the per-meeting draft loop (gather -> draft -> length retry)
+  daily.py          calendar batching -> daily packet markdown
+  calendar.py       pure event parser (gcal.py = read-only service-account fetch)
+  notion_mcp.py     in-process read-only Notion MCP server (CRM)
+  web.py            Phase 5 web enrichment
+  pdf.py            packet markdown -> PDF (fpdf2)
+  mailer.py         send-only email (one recipient, STARTTLS)
+  config.py         headless credential loading + fail-fast
+  cli.py            single brief / daily packet (writes .md, no email)
+scheduled_run.py    the scheduled & on-demand entry point: packet -> PDF -> email
+.github/workflows/daily-brief.yml   scheduled GitHub Actions job
+Makefile            make brief / brief-local / brief-date shortcuts
+eval/               eval runner + results/ baselines
+tests/              unit + resilience + live smoke tests
+out/                generated packets/PDFs (gitignored)
+.env / .env.example credentials (real / placeholders)
+service-account.json  Google service-account key (gitignored)
 ```
 
-The CRM is read through a small **in-process, read-only Notion MCP server**
-(`brief_agent/notion_mcp.py`) that re-exposes `notion-search`/`notion-fetch` on top of the Notion
-REST API + a `NOTION_TOKEN` integration token — **not** the claude.ai connector (which the API key
-disables). It exposes no write tool at all, so Notion is read-only by construction.
+---
 
-In calendar mode, `brief_agent/gcal.py` reads the day's events directly from Google Calendar via a
-**service account** (scope `calendar.readonly` — writes are physically impossible), the pure
-`brief_agent/calendar.py` normalises them, and `brief_agent/daily.py` batches the engine above over
-each external meeting, ordering the results into one packet. A meeting-aware gather
-(`SYSTEM_PROMPT_NOTION_MEETING` in `prompt.py`) centers each brief on the specific attendee — the
-output format is identical to Phase 2.
+## Known limits
 
-Web enrichment (`brief_agent/web.py`) is a separate read-only sub-agent (`WebSearch`/`WebFetch`)
-that returns structured, URL-bearing news items; the orchestrator injects them as WEB CONTEXT into
-the draft, which folds only relevant, cited items into "What's changed". Keeping web behind one
-Python function lets the eval suite mock it for a deterministic gate (`eval/run_eval_web.py`) while
-production uses the real tools (`tests/test_web_smoke.py` covers the live path, non-gating).
-
-### Read-only safety
-
-- The Notion MCP server (`notion_mcp.py`) exposes **only** search + fetch — it has no
-  create/update/delete tool, so a Notion write is impossible, not merely denied. The calendar read
-  uses the `calendar.readonly` OAuth scope, so a calendar write is impossible at the credential
-  level. Web access (`WebSearch`/`WebFetch`) is read-only by nature.
-- `allowed_tools` is still whitelisted to `notion-search`/`notion-fetch` (+ `WebSearch`/`WebFetch`
-  for the web sub-agent), and every known Notion/Calendar write tool name stays in
-  `disallowed_tools` — defense in depth, in case a claude.ai connector were ever re-enabled.
-- `permission_mode="dontAsk"` denies anything not allow-listed without prompting (non-interactive).
-- `BriefResult.made_any_write` / `DayPacket.made_any_write` are asserted `False`; the CLI and all
-  eval suites error out if any write tool name is ever seen.
-
-### Notes on the CRM
-
-The CRM is three linked Notion databases — Accounts, Meetings, Contacts (data source IDs
-live in `brief_agent/prompt.py`). The agent gathers context via **search → fetch →
-follow relations**; it does **not** use `query_data_sources`/SQL (that requires a Notion
-Business plan + AI, which isn't assumed here).
-
-### Honesty rule
-
-If a fact isn't in Notion, the brief marks it `Unknown` rather than inventing it. If the
-input doesn't resolve to an account, the brief says so in the metadata line instead of
-fabricating one — a CEO acting on a made-up detail is the worst failure mode.
-
-## Tests & evals
-
-Two layers, both runnable headless:
-
-```bash
-# Deterministic, offline unit tests (no model, no network) — fast regression guard
-python tests/test_resilience.py        # degradation, length-retry, write-detection
-python tests/test_calendar_unit.py     # calendar parsing / internal detection / ordering
-python tests/test_web_unit.py          # web item parsing + URL hygiene
-python tests/test_notion_unit.py       # Notion MCP server: search/fetch/provenance marker
-
-# Model-backed eval suites (LLM-as-judge + programmatic checks) — require the credentials above
-python eval/run_eval.py --model opus            # account briefs (incl. no-match / ambiguous)
-python eval/run_eval_calendar.py --model opus   # calendar packet + person-precision (mocked calendar)
-python eval/run_eval_web.py --model opus        # web folding: cited / empty / wrong-entity / contact-protected (mocked web)
-```
-
-Each eval runner writes a scorecard (`eval/results/*.md` + `.json`) and **exits non-zero if any
-case fails or any write tool is ever seen**. The calendar and web evals **mock** their external
-inputs so the gate is deterministic; the live web path has a separate non-gating smoke test
-(`tests/test_web_smoke.py`).
-
-## The brief format
-
-Title → metadata line → Bottom line → Who you're meeting → What's changed since you last
-spoke → Likely to come up → Your goals & talking points → Watch-outs → Desired outcome.
-~250–350 words, one page. Full spec in `brief_agent/prompt.py` — fixed since Phase 1.
+- Sonnet occasionally runs ~1 word over the length cap and had one grounding slip on
+  the harder calendar task; **Opus is clean** — use it for production.
+- Web enrichment is company-level news only, last ~6 months.
+- Contacts are your private CRM records; they intentionally won't match a real
+  company's public execs, and the agent won't reconcile them against the web.
